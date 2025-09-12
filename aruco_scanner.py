@@ -99,7 +99,7 @@ class ArucoScanner:
             # DEBUG: Print detection info
             if ids is not None:
                 detected_ids = [int(id_val) for id_val in ids.flatten()]
-                print(f"🔍 DEBUG: Detected ArUco markers: {detected_ids}")
+                # print(f"🔍 DEBUG: Detected ArUco markers: {detected_ids}")
             else:
                 # Only print this occasionally to avoid spam
                 import time
@@ -107,7 +107,7 @@ class ArucoScanner:
                     self._last_no_detection_print = 0
                 current_time = time.time()
                 if current_time - self._last_no_detection_print > 5:  # Print every 5 seconds
-                    print("🔍 DEBUG: No ArUco markers detected in frame")
+                    # print("🔍 DEBUG: No ArUco markers detected in frame")
                     self._last_no_detection_print = current_time
             
             if ids is not None:
@@ -117,34 +117,29 @@ class ArucoScanner:
                     # Only process markers we're looking for
                     if marker_id in self.target_ids:
                         center = self._calculate_marker_center(corner)
+                        frame_height, frame_width = frame.shape[:2]
+                        center_x, center_y = self._calculate_marker_center(corner)
+                        normalized_x = (center_x / frame_width) * 2 - 1
                         
                         # TEMPORARY: Trigger immediately without stability check for debugging
                         if marker_id not in self.triggered_ids:
-                            print(f"🎯 DEBUG: ArUco marker detected immediately: ID {marker_id}")
+                            # print(f"🎯 DEBUG: ArUco marker detected immediately: ID {marker_id}")
                             self.triggered_ids.add(marker_id)
                             
                             # Trigger callback if set
                             if self.on_stable_marker:
                                 try:
-                                    self.on_stable_marker(marker_id, self.target_ids[marker_id])
+                                    self.on_stable_marker(marker_id, self.target_ids[marker_id], normalized_x)
                                 except Exception as e:
                                     print(f"Error in marker callback: {e}")
                         
                         # Draw marker on frame
                         pts = corner[0].astype(int)
-                        print("matching id")
                         for j in range(4):
                             cv2.line(frame, tuple(pts[j]), tuple(pts[(j+1)%4]), (0,255,0), 2)
                         
-                        # Draw red line through middle of marker
-                        center_x, center_y = self._calculate_marker_center(corner)
-                        frame_height, frame_width = frame.shape[:2]
                         # Draw vertical line across entire screen height
                         cv2.line(frame, (int(center_x), 0), (int(center_x), frame_height), (0,0,255), 3)
-                        
-                        # Calculate normalized x coordinate (-1 to 1)
-                        normalized_x = (center_x / frame_width) * 2 - 1
-                        print(f"🎯 Marker ID {marker_id}: normalized_x = {normalized_x:.3f}")
                         
                         # Show marker ID and status
                         status = "TRIGGERED" if marker_id in self.triggered_ids else "TRACKING"
@@ -155,7 +150,6 @@ class ArucoScanner:
                     # TEMPORARY: Also show ALL detected markers for debugging, even if not in target list
                     else:
                         pts = corner[0].astype(int)
-                        print("not matching id")
                         for j in range(4):
                             cv2.line(frame, tuple(pts[j]), tuple(pts[(j+1)%4]), (128,128,128), 1)
                         
@@ -167,11 +161,11 @@ class ArucoScanner:
                         
                         # Calculate normalized x coordinate (-1 to 1)
                         normalized_x = (center_x / frame_width) * 2 - 1
-                        print(f"🔍 Non-target Marker ID {marker_id}: normalized_x = {normalized_x:.3f}")
+                        # print(f"🔍 Non-target Marker ID {marker_id}: normalized_x = {normalized_x:.3f}")
                         
                         cv2.putText(frame, f'ID:{marker_id} NOT_TARGET X:{normalized_x:.2f}', tuple(pts[0]), 
                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 1)
-                        print(f"🔍 DEBUG: Detected non-target ArUco marker: ID {marker_id}")
+                        # print(f"🔍 DEBUG: Detected non-target ArUco marker: ID {marker_id}")
             
             # Clean up old position data for markers not currently visible
             current_ids = set(int(id_val) for id_val in ids) if ids is not None else set()

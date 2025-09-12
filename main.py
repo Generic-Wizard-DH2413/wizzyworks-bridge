@@ -2,6 +2,8 @@ import cv2
 import time
 import signal
 import sys
+import json
+import os
 from aruco_scanner import ArucoScanner
 from websocket_client import WebSocketClient
 
@@ -38,10 +40,11 @@ class WizzyWorksBridge:
             self.aruco_scanner.set_target_ids(aruco_data)
         
         # When a stable marker is detected, trigger action
-        def on_stable_marker(marker_id, associated_data):
+        def on_stable_marker(marker_id, associated_data, normalized_x):
             print(f"🎯 TRIGGER: Stable ArUco marker {marker_id} detected!")
             print(f"   Associated data: {associated_data}")
-            self._handle_stable_marker(marker_id, associated_data)
+            print(f"   Normalized X: {normalized_x}")
+            self._handle_stable_marker(marker_id, associated_data, normalized_x)  # normalized_x can be implemented as needed
         
         # Connection status callbacks
         def on_connected():
@@ -55,7 +58,7 @@ class WizzyWorksBridge:
         self.websocket_client.set_connection_callbacks(on_connected, on_disconnected)
         self.aruco_scanner.set_stable_marker_callback(on_stable_marker)
     
-    def _handle_stable_marker(self, marker_id: int, associated_data):
+    def _handle_stable_marker(self, marker_id: int, associated_data, normolized_x: float):
         """
         Handle when a stable ArUco marker is detected
         This is where you implement your custom logic
@@ -64,27 +67,68 @@ class WizzyWorksBridge:
             marker_id: The ArUco marker ID that was detected
             associated_data: Any data that was sent with this marker ID via WebSocket
         """
-        # Example: Send confirmation back to WebSocket server
-        response = {
-            "event": "marker_triggered",
-            "marker_id": marker_id,
-            "data": associated_data,
-            "timestamp": time.time()
-        }
-        self.websocket_client.send_json(response)
+        # Check if associated_data is a list of x,y coordinates
+        print(f"🔍 Debug: associated_data type: {type(associated_data)}")
+        print(f"🔍 Debug: associated_data value: {associated_data}")
         
-        # Example: Custom actions based on marker ID
-        if marker_id == 1:
-            print("🔴 Red action triggered!")
-        elif marker_id == 2:
-            print("🔵 Blue action triggered!")
-        elif marker_id == 3:
-            print("🟢 Green action triggered!")
+        # If it's a string, try to parse it as JSON
+        if isinstance(associated_data, str):
+            try:
+                associated_data = json.loads(associated_data)
+                print(f"🔍 Debug: Parsed JSON successfully: {associated_data}")
+            except json.JSONDecodeError as e:
+                print(f"❌ Error parsing JSON: {e}")
+                print(f"ℹ️ Marker {marker_id} data is not valid JSON - skipping file save")
+                return
+        
+        print(f"🔍 Debug: isinstance(associated_data, list): {isinstance(associated_data, list)}")
+        
+        if isinstance(associated_data, list) and len(associated_data) > 0:
+            print(f"🔍 Debug: Passed initial list check, length: {len(associated_data)}")
+            # Validate that all items in the list are coordinate pairs (x,y)
+            is_coordinate_list = True
+            for i, item in enumerate(associated_data):
+                print(f"🔍 Debug: Item {i}: {item}, type: {type(item)}")
+                item_is_valid = (isinstance(item, (list, tuple)) and len(item) == 2 and 
+                               all(isinstance(coord, (int, float)) for coord in item))
+                print(f"🔍 Debug: Item {i} is valid: {item_is_valid}")
+                if not item_is_valid:
+                    is_coordinate_list = False
+                    break
+            
+            print(f"🔍 Debug: is_coordinate_list: {is_coordinate_list}")
+            if is_coordinate_list:
+                # Create the data structure to save
+                data_to_save = {
+                    "location": normolized_x,
+                    "points": associated_data
+                }
+                
+                # Create save directory path
+                save_dir = "../wizzyworks-graphics/godot-visuals/json_fireworks"
+                
+                # Create directory if it doesn't exist
+                os.makedirs(save_dir, exist_ok=True)
+                
+                # Create filename based on marker ID
+                filename = os.path.join(save_dir, f"{marker_id}.json")
+                
+                try:
+                    # Save to JSON file
+                    with open(filename, 'w') as f:
+                        json.dump(data_to_save, f, indent=2)
+                    
+                    print(f"💾 Saved marker {marker_id} data to {filename}")
+                    print(f"   Location: {normolized_x}")
+                    print(f"   Points: {len(associated_data)} coordinate pairs")
+                    
+                except Exception as e:
+                    print(f"❌ Error saving data for marker {marker_id}: {e}")
+            else:
+                print(f"⚠️ Marker {marker_id} data is not a valid list of x,y coordinates")
         else:
-            print(f"🟡 Generic action triggered for marker {marker_id}")
-        
-        # Add your custom logic here
-        # For example: control hardware, send API calls, etc.
+            print(f"ℹ️ Marker {marker_id} data is not a list - skipping file save")
+                
     
     def start(self):
         """Start the bridge application"""

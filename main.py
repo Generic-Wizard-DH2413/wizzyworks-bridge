@@ -8,7 +8,7 @@ from aruco_scanner import ArucoScanner
 from websocket_client import WebSocketClient
 
 class WizzyWorksBridge:
-    def __init__(self, websocket_uri: str = "ws://localhost:8080"):
+    def __init__(self, websocket_uri: str = "ws://localhost:8080/"):
         """
         Main application class that coordinates WebSocket and ArUco scanning
         
@@ -243,7 +243,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     
     # You can change the WebSocket URI here
-    websocket_uri = "ws://localhost:8080"
+    websocket_uri = "ws://130.229.156.85:8765"
     
     # Create and start the bridge
     bridge = WizzyWorksBridge(websocket_uri)

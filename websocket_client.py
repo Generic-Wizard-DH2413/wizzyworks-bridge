@@ -59,7 +59,7 @@ class WebSocketClient:
             # Handle single ArUco ID
             if "aruco_id" in data:
                 aruco_id = int(data["aruco_id"])
-                payload = data.get("data", None)
+                payload = data.get("data", {}).get("data", None)
                 self.aruco_data[aruco_id] = payload
                 print(f"Received ArUco ID {aruco_id} with data: {payload}")
                 return True
@@ -67,7 +67,7 @@ class WebSocketClient:
             # Handle multiple ArUco IDs
             elif "aruco_ids" in data:
                 aruco_ids = data["aruco_ids"]
-                payload = data.get("data", None)
+                payload = data.get("data", {}).get("data", None)
                 for aruco_id in aruco_ids:
                     self.aruco_data[int(aruco_id)] = payload
                 print(f"Received ArUco IDs {aruco_ids} with data: {payload}")
@@ -100,6 +100,10 @@ class WebSocketClient:
             async with websockets.connect(self.uri) as websocket:
                 self.websocket = websocket
                 print(f"Connected to WebSocket: {self.uri}")
+                
+                # Send bridge identification message immediately after connection
+                await websocket.send(json.dumps({"type": "bridge"}))
+                print("Sent bridge identification message")
                 
                 if self.on_connected:
                     self.on_connected()

@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import threading
 import time
+import platform
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional, Callable
 
@@ -21,10 +22,16 @@ class ArucoScanner:
         
         # Camera setup
         self.cap = cv2.VideoCapture(camera_index)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+
+        if platform.system() == "Linux":  # Linux (V4L2)
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)     # Manual
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, 100)        # ~10 ms (adjust for brightness)
+        else: # Windows
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, -5)
         
         # ArUco detection setup
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)

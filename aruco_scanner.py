@@ -24,7 +24,7 @@ class ArucoScanner:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, -5)
         
         # ArUco detection setup
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -45,12 +45,18 @@ class ArucoScanner:
         # Callback for when stable marker is detected
         self.on_stable_marker: Optional[Callable[[int, any], None]] = None
     
-    def set_target_ids(self, target_ids: Dict[int, any]):
-        """Set the ArUco IDs to watch for with their associated data"""
-        self.target_ids = target_ids.copy()
-        self.triggered_ids.clear()  # Reset triggered state when new targets are set
-        print(f"Updated target ArUco IDs: {list(self.target_ids.keys())}")
+    def set_target_id(self, new_id: int, data: any):
+        """Add or update a single ArUco ID to watch for with its associated data"""
+        self.target_ids[new_id] = data
+        self.triggered_ids.discard(new_id)  # Allow retriggering if it was already triggered
+        print(f"Added/Updated target ArUco ID: {new_id}")
+        print(f"Current target ArUco IDs: {list(self.target_ids.keys())}")
+        print(f"Current triggered ArUco IDs: {list(self.triggered_ids)}")
     
+    def get_target_ids(self) -> Dict[int, any]:
+        """Get the current target ArUco IDs and their associated data"""
+        return self.target_ids.copy()
+
     def set_stable_marker_callback(self, callback: Callable[[int, any], None]):
         """Set the callback function to call when a stable marker is detected"""
         self.on_stable_marker = callback

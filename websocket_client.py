@@ -19,9 +19,6 @@ class WebSocketClient:
         self.loop = None
         self.thread = None
         
-        # Storage for received ArUco data
-        self.aruco_data: Dict[int, Any] = {}
-        
         # Callbacks
         self.on_aruco_received: Optional[Callable[[Dict[int, Any]], None]] = None
         self.on_message_received: Optional[Callable[[str], None]] = None
@@ -41,58 +38,6 @@ class WebSocketClient:
         """Set callbacks for connection events"""
         self.on_connected = on_connected
         self.on_disconnected = on_disconnected
-    
-    def _parse_message(self, message: str) -> bool:
-        """
-        Parse incoming message and extract ArUco data
-        
-        Expected format examples:
-        - {"aruco_id": 5, "data": "some_data"}
-        - {"aruco_ids": [1, 2, 3], "data": {"key": "value"}}
-        - {"command": "reset"}
-        
-        Returns True if ArUco data was found and processed
-        """
-        try:
-            data = json.loads(message)
-            
-            # Handle single ArUco ID
-            if "aruco_id" in data:
-                aruco_id = int(data["aruco_id"])
-                payload = data.get("data", {}).get("data", None)
-                self.aruco_data[aruco_id] = payload
-                print(f"Received ArUco ID {aruco_id} with data: {payload}")
-                return True
-            
-            # Handle multiple ArUco IDs
-            elif "aruco_ids" in data:
-                aruco_ids = data["aruco_ids"]
-                payload = data.get("data", {}).get("data", None)
-                for aruco_id in aruco_ids:
-                    self.aruco_data[int(aruco_id)] = payload
-                print(f"Received ArUco IDs {aruco_ids} with data: {payload}")
-                return True
-            
-            # Handle reset command
-            elif data.get("command") == "reset":
-                self.aruco_data.clear()
-                print("ArUco data cleared")
-                return True
-            
-            # Handle clear specific ID
-            elif data.get("command") == "clear" and "aruco_id" in data:
-                aruco_id = int(data["aruco_id"])
-                if aruco_id in self.aruco_data:
-                    del self.aruco_data[aruco_id]
-                    print(f"Cleared ArUco ID {aruco_id}")
-                return True
-                
-        except json.JSONDecodeError:
-            print(f"Invalid JSON received: {message}")
-        except (KeyError, ValueError, TypeError) as e:
-            print(f"Error parsing message: {e}")
-        
-        return False
     
     async def _listen(self):
         """Listen for incoming WebSocket messages"""
@@ -117,12 +62,17 @@ class WebSocketClient:
                     # Call general message callback
                     if self.on_message_received:
                         self.on_message_received(message)
-                    
+
                     # Parse and handle ArUco data
-                    if self._parse_message(message):
-                        # Call ArUco-specific callback
-                        if self.on_aruco_received:
-                            self.on_aruco_received(self.aruco_data.copy())
+                    if self.on_aruco_received:
+                        try:
+                            raw_data = json.loads(message)
+                            data = raw_data.get("data")
+                            aruco_id = data.get("id")
+                            payload = data.get("data")
+                            self.on_aruco_received(aruco_id, payload)
+                        except json.JSONDecodeError:
+                            self.on_aruco_received(message)
                 
         except websockets.exceptions.ConnectionClosed:
             print("WebSocket connection closed")
@@ -172,14 +122,6 @@ class WebSocketClient:
             self.thread.join(timeout=5)
         
         print("WebSocket client stopped")
-    
-    def get_aruco_data(self) -> Dict[int, Any]:
-        """Get current ArUco data"""
-        return self.aruco_data.copy()
-    
-    def clear_aruco_data(self):
-        """Clear all stored ArUco data"""
-        self.aruco_data.clear()
     
     def send_message(self, message: str):
         """Send a message to the WebSocket server"""

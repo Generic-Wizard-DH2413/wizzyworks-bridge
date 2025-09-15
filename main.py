@@ -34,10 +34,10 @@ class WizzyWorksBridge:
     def _setup_callbacks(self):
         """Set up callbacks between components"""
         
-        # When ArUco data is received via WebSocket, update scanner targets
-        def on_aruco_received(aruco_data):
-            print(f"Updating ArUco targets: {list(aruco_data.keys())}")
-            self.aruco_scanner.set_target_ids(aruco_data)
+        # When an ArUco data is received via WebSocket, update scanner targets
+        def on_aruco_received(aruco_id, data):
+            print(f"🔔 Received ArUco ID {aruco_id} with data: {data}")
+            self.aruco_scanner.set_target_id(aruco_id, data)
         
         # When a stable marker is detected, trigger action
         def on_stable_marker(marker_id, associated_data, normalized_x):
@@ -209,9 +209,8 @@ class WizzyWorksBridge:
         cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
         
         # Status text
-        aruco_data = self.websocket_client.get_aruco_data()
-        target_ids = list(aruco_data.keys())
-        
+        target_ids = list(self.aruco_scanner.get_target_ids().keys())
+
         y_offset = int(30 * scale_factor)
         cv2.putText(frame, f"WebSocket: {self.websocket_uri}", (15, y_offset), 
                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
@@ -243,7 +242,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     
     # You can change the WebSocket URI here
-    websocket_uri = "ws://130.229.156.85:8765"
+    websocket_uri = "ws://192.168.3.7:8765"
     
     # Create and start the bridge
     bridge = WizzyWorksBridge(websocket_uri)

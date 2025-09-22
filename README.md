@@ -106,8 +106,8 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
 # Exposure settings (for bright markers in dark rooms)
-cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
-cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+cap.set(cv2.CAP_PROP_EXPOSURE, 100)
 ```
 
 ### Stability Detection
@@ -139,29 +139,6 @@ The system expects JSON messages in these formats:
 {
     "aruco_id": 5,
     "data": "any_data_here"
-}
-```
-
-### Multiple ArUco IDs
-```json
-{
-    "aruco_ids": [1, 2, 3],
-    "data": {"key": "value"}
-}
-```
-
-### Reset Command
-```json
-{
-    "command": "reset"
-}
-```
-
-### Clear Specific ID
-```json
-{
-    "command": "clear",
-    "aruco_id": 5
 }
 ```
 
@@ -242,16 +219,3 @@ This sends a sequence of test commands to demonstrate all features.
 - **OpenCV**: Computer vision and ArUco marker detection
 - **NumPy**: Numerical operations
 - **websockets**: WebSocket client/server functionality
-
-## License
-
-[Your License Here]
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-The python application that bridges the phone and the big screen.

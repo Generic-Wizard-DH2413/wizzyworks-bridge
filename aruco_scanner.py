@@ -19,12 +19,39 @@ class ArucoScanner:
         self.stability_threshold = stability_threshold
         self.stability_duration = stability_duration
         
-        # Camera setup
-        self.cap = cv2.VideoCapture(camera_index)
+        # Camera setup - use V4L2 backend for better Linux compatibility
+        self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
+        
+        # Set pixel format to MJPG to avoid color issues
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        
+        # Set desired resolution and frame rate
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, -5)
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Disable auto exposure (1 = manual mode for V4L2) and set a manual exposure value
+        # A lower value means shorter exposure, darker image, and higher framerate potential
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, 100)
+        
+        # Verify settings
+        fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
+        fourcc_str = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)])
+        actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        actual_auto_exposure = self.cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
+        actual_exposure = self.cap.get(cv2.CAP_PROP_EXPOSURE)
+        
+        print("--- Camera Settings ---")
+        print(f"Backend: V4L2")
+        print(f"FOURCC set: MJPG, actual: {fourcc_str}")
+        print(f"Resolution set: 1920x1080, actual: {int(actual_width)}x{int(actual_height)}")
+        print(f"FPS set: 30, actual: {actual_fps}")
+        print(f"Auto Exposure set to: 1 (Manual), actual: {actual_auto_exposure}")
+        print(f"Exposure set to: 100, actual: {actual_exposure}")
+        print("-----------------------")
         
         # ArUco detection setup
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)

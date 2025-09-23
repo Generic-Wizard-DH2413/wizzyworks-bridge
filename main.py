@@ -24,9 +24,7 @@ class WizzyWorksBridge:
         # 0 is usually the built-in webcam, 1 or higher are for external webcams.
         # You can list available cameras on Linux with `ls /dev/video*`
         self.aruco_scanner = ArucoScanner(
-            camera_index=4,  # Changed to use external webcam
-            stability_threshold=10.0,  # pixels
-            stability_duration=2.0,  # seconds
+            camera_index=0,  # Changed to use external webcam
         )
 
         # Set up callbacks
@@ -43,14 +41,12 @@ class WizzyWorksBridge:
             print(f"🔔 Received ArUco ID {aruco_id} with data: {data}")
             self.aruco_scanner.set_target_id(aruco_id, data)
 
-        # When a stable marker is detected, trigger action
-        def on_stable_marker(marker_id, associated_data, normalized_x):
-            print(f"🎯 TRIGGER: Stable ArUco marker {marker_id} detected!")
+        # When a aruco marker is detected, trigger action
+        def on_marker_detected(marker_id, associated_data, normalized_x):
+            print(f"🎯 TRIGGER: ArUco marker {marker_id} detected!")
             print(f"   Associated data: {associated_data}")
             print(f"   Normalized X: {normalized_x}")
-            self._handle_stable_marker(
-                marker_id, associated_data, normalized_x
-            )  # normalized_x can be implemented as needed
+            self._handle_marker_detected(marker_id, associated_data, normalized_x)
 
         # Connection status callbacks
         def on_connected():
@@ -62,9 +58,9 @@ class WizzyWorksBridge:
         # Set callbacks
         self.websocket_client.set_aruco_callback(on_aruco_received)
         self.websocket_client.set_connection_callbacks(on_connected, on_disconnected)
-        self.aruco_scanner.set_stable_marker_callback(on_stable_marker)
+        self.aruco_scanner.set_marker_detected_callback(on_marker_detected)
 
-    def _handle_stable_marker(
+    def _handle_marker_detected(
         self, marker_id: int, associated_data, normolized_x: float
     ):
         """

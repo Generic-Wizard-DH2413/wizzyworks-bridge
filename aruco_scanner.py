@@ -10,20 +10,14 @@ class ArucoScanner:
     def __init__(
         self,
         camera_index: int = 0,
-        stability_threshold: float = 10.0,
-        stability_duration: float = 2.0,
     ):
         """
-        Initialize ArUco scanner with stability detection
+        Initialize ArUco scanner
 
         Args:
             camera_index: Camera device index
-            stability_threshold: Maximum pixel movement allowed for stability (pixels)
-            stability_duration: How long marker must be stable before triggering (seconds)
         """
         self.camera_index = camera_index
-        self.stability_threshold = stability_threshold
-        self.stability_duration = stability_duration
 
         # Camera setup - use V4L2 backend for better Linux compatibility
         self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
@@ -51,7 +45,7 @@ class ArucoScanner:
         actual_exposure = self.cap.get(cv2.CAP_PROP_EXPOSURE)
 
         print("--- Camera Settings ---")
-        print(f"Backend: V4L2")
+        print("Backend: V4L2")
         print(f"FOURCC set: MJPG, actual: {fourcc_str}")
         print(
             f"Resolution set: 1920x1080, actual: {int(actual_width)}x{int(actual_height)}"
@@ -81,8 +75,8 @@ class ArucoScanner:
         self.frame_lock = threading.Lock()
         self.latest_frame = None
 
-        # Callback for when stable marker is detected
-        self.on_stable_marker: Optional[Callable[[int, Any, float], None]] = None
+        # Callback for when marker is detected
+        self.on_marker_detected: Optional[Callable[[int, Any, float], None]] = None
 
     def set_target_id(self, new_id: int, data: Any):
         """Add or update a single ArUco ID to watch for with its associated data"""
@@ -98,48 +92,15 @@ class ArucoScanner:
         """Get the current target ArUco IDs and their associated data"""
         return self.target_ids.copy()
 
-    def set_stable_marker_callback(self, callback: Callable[[int, Any, float], None]):
-        """Set the callback function to call when a stable marker is detected"""
-        self.on_stable_marker = callback
+    def set_marker_detected_callback(self, callback: Callable[[int, Any, float], None]):
+        """Set the callback function to call when a aruco marker is detected"""
+        self.on_marker_detected = callback
 
     def _calculate_marker_center(self, corners) -> Tuple[float, float]:
         """Calculate the center point of a marker from its corners"""
         center_x = np.mean(corners[0][:, 0])
         center_y = np.mean(corners[0][:, 1])
         return float(center_x), float(center_y)
-
-    def _is_marker_stable(
-        self, marker_id: int, current_center: Tuple[float, float]
-    ) -> bool:
-        """Check if a marker has been stable for the required duration"""
-        current_time = time.time()
-        positions = self.marker_positions[marker_id]
-
-        # Add current position
-        positions.append((current_center[0], current_center[1], current_time))
-
-        # Remove old positions (older than stability_duration)
-        positions[:] = [
-            (x, y, t)
-            for x, y, t in positions
-            if current_time - t <= self.stability_duration
-        ]
-
-        # Check if we have enough data points
-        if len(positions) < 2:
-            return False
-
-        # Check if all recent positions are within threshold
-        for x, y, t in positions:
-            distance = np.sqrt(
-                (x - current_center[0]) ** 2 + (y - current_center[1]) ** 2
-            )
-            if distance > self.stability_threshold:
-                return False
-
-        # Check if we've been stable for the full duration
-        oldest_time = min(t for _, _, t in positions)
-        return (current_time - oldest_time) >= self.stability_duration
 
     def _scan_loop(self):
         """Main scanning loop running in a separate thread"""
@@ -177,15 +138,14 @@ class ArucoScanner:
                         center_x, center_y = self._calculate_marker_center(corner)
                         normalized_x = (center_x / frame_width) * 2 - 1
 
-                        # TEMPORARY: Trigger immediately without stability check for debugging
                         if marker_id not in self.triggered_ids:
                             # print(f"🎯 DEBUG: ArUco marker detected immediately: ID {marker_id}")
                             self.triggered_ids.add(marker_id)
 
                             # Trigger callback if set
-                            if self.on_stable_marker:
+                            if self.on_marker_detected:
                                 try:
-                                    self.on_stable_marker(
+                                    self.on_marker_detected(
                                         marker_id,
                                         self.target_ids[marker_id],
                                         normalized_x,
@@ -274,20 +234,20 @@ class ArucoScanner:
                         # print(f"🔍 DEBUG: Detected non-target ArUco marker: ID {marker_id}")
 
             # Clean up old position data for markers not currently visible
-            current_ids = (
-                set(int(id_val) for id_val in ids) if ids is not None else set()
-            )
-            for marker_id in list(self.marker_positions.keys()):
-                if marker_id not in current_ids:
-                    # Remove positions older than stability_duration * 2
-                    current_time = time.time()
-                    self.marker_positions[marker_id] = [
-                        (x, y, t)
-                        for x, y, t in self.marker_positions[marker_id]
-                        if current_time - t <= self.stability_duration * 2
-                    ]
-                    if not self.marker_positions[marker_id]:
-                        del self.marker_positions[marker_id]
+            # current_ids = (
+            #     set(int(id_val) for id_val in ids) if ids is not None else set()
+            # )
+            # for marker_id in list(self.marker_positions.keys()):
+            #     if marker_id not in current_ids:
+            #         # Remove positions older than stability_duration * 2
+            #         current_time = time.time()
+            #         self.marker_positions[marker_id] = [
+            #             (x, y, t)
+            #             for x, y, t in self.marker_positions[marker_id]
+            #             if current_time - t <= self.stability_duration * 2
+            #         ]
+            #         if not self.marker_positions[marker_id]:
+            #             del self.marker_positions[marker_id]
 
             # Store latest frame for display (after all drawing is complete)
             with self.frame_lock:

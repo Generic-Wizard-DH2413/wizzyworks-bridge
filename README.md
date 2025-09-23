@@ -6,7 +6,6 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 
 - **WebSocket Integration**: Receives ArUco marker IDs and associated data via WebSocket
 - **Real-time ArUco Detection**: Continuously scans video feed for ArUco markers
-- **Stability Detection**: Only triggers actions when markers are stationary for a configured duration
 - **Component-based Architecture**: Modular design with separate scanner and WebSocket components
 - **Visual Feedback**: Live video feed with marker detection overlay and status information
 - **Test Server Included**: Complete testing environment with interactive commands
@@ -15,7 +14,7 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 
 ### Components
 
-1. **`aruco_scanner.py`**: ArUco marker detection and stability tracking
+1. **`aruco_scanner.py`**: ArUco marker detection
 2. **`websocket_client.py`**: WebSocket client for receiving marker data
 3. **`main.py`**: Main application coordinating all components
 4. **`test_server.py`**: WebSocket server for testing and development
@@ -32,12 +31,14 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 ## Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone <repository-url>
    cd wizzyworks-bridge
    ```
 
 2. **Install dependencies**:
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -50,6 +51,7 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 ### 1. Start the Test Server
 
 Open a terminal and run:
+
 ```bash
 python test_server.py
 ```
@@ -59,11 +61,13 @@ This starts a WebSocket server on `ws://localhost:8080` with interactive mode.
 ### 2. Start the Bridge Application
 
 In another terminal, run:
+
 ```bash
 python main.py
 ```
 
 This will:
+
 - Connect to the WebSocket server
 - Start the camera feed
 - Begin monitoring for ArUco markers
@@ -110,17 +114,7 @@ cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
 cap.set(cv2.CAP_PROP_EXPOSURE, 100)
 ```
 
-### Stability Detection
-
-In `main.py`, adjust the scanner parameters:
-
-```python
-self.aruco_scanner = ArucoScanner(
-    camera_index=0,
-    stability_threshold=10.0,  # pixels (how much movement is allowed)
-    stability_duration=2.0     # seconds (how long marker must be stable)
-)
-```
+````
 
 ### WebSocket URI
 
@@ -128,17 +122,18 @@ Change the WebSocket server address in `main.py`:
 
 ```python
 websocket_uri = "ws://your-server:8080"
-```
+````
 
 ## WebSocket Message Format
 
 The system expects JSON messages in these formats:
 
 ### Single ArUco ID
+
 ```json
 {
-    "aruco_id": 5,
-    "data": "any_data_here"
+  "aruco_id": 5,
+  "data": "any_data_here"
 }
 ```
 
@@ -149,7 +144,7 @@ To implement your custom logic when markers are detected, modify the `_handle_st
 ```python
 def _handle_stable_marker(self, marker_id: int, associated_data):
     """Handle when a stable ArUco marker is detected"""
-    
+
     # Your custom logic here
     if marker_id == 1:
         # Control hardware, send API calls, etc.
@@ -157,7 +152,7 @@ def _handle_stable_marker(self, marker_id: int, associated_data):
     elif marker_id == 2:
         # Different action for different markers
         print("Executing blue button action!")
-    
+
     # Send confirmation back to WebSocket
     response = {
         "event": "marker_triggered",
@@ -183,26 +178,13 @@ When the video window is active:
 1. **No camera detected**: Check camera index in `ArucoScanner(camera_index=0)`
 2. **Poor detection**: Adjust lighting and camera exposure settings
 3. **Low resolution**: Increase camera resolution settings
+4. **Different backends on different OSs**: Using V4L2 on Linux, DirectShow on Windows, etc.
 
 ### WebSocket Issues
 
 1. **Connection failed**: Verify WebSocket server is running and URI is correct
 2. **Messages not received**: Check JSON format and network connectivity
 3. **Reconnection problems**: Server automatically attempts reconnection every 5 seconds
-
-### ArUco Detection Issues
-
-1. **Markers not detected**: Ensure good lighting and proper marker size
-2. **False triggers**: Increase `stability_threshold` or `stability_duration`
-3. **Missing triggers**: Decrease stability parameters or improve marker visibility
-
-## Development
-
-### Adding New Features
-
-1. **Custom message types**: Modify `_parse_message` in `websocket_client.py`
-2. **Different stability algorithms**: Extend `_is_marker_stable` in `aruco_scanner.py`
-3. **Additional camera sources**: Create new scanner instances with different indices
 
 ### Testing
 

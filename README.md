@@ -1,6 +1,6 @@
 # WizzyWorks Bridge
 
-A Python application that bridges WebSocket communication with ArUco marker detection. The system listens for ArUco marker IDs via WebSocket, then monitors a video feed for those specific markers. When a marker is detected and remains stable (not moving) for a specified duration, it triggers a custom action.
+A Python application that bridges WebSocket communication with ArUco marker detection. The system listens for ArUco marker IDs via WebSocket, then monitors a video feed for those specific markers. When a marker is detected, it triggers a custom action.
 
 ## Features
 
@@ -25,7 +25,7 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 1. WebSocket server sends ArUco marker IDs with associated data
 2. Bridge receives and stores the target marker IDs
 3. Camera continuously scans for ArUco markers
-4. When a target marker is detected and stable, triggers custom action
+4. When a target marker is detected, triggers custom action
 5. Action results can be sent back via WebSocket
 
 ## Installation
@@ -95,8 +95,7 @@ clear 1
 1. Generate ArUco markers using online tools or OpenCV
 2. Print markers with IDs that match your WebSocket commands
 3. Show markers to the camera
-4. Keep markers stable (not moving) for 2 seconds
-5. Watch for trigger events in the console
+4. Watch for trigger events in the console
 
 ## Configuration
 
@@ -139,11 +138,11 @@ The system expects JSON messages in these formats:
 
 ## Custom Actions
 
-To implement your custom logic when markers are detected, modify the `_handle_stable_marker` method in `main.py`:
+To implement your custom logic when markers are detected, modify the `_handle_marker_detected` method in `main.py`:
 
 ```python
-def _handle_stable_marker(self, marker_id: int, associated_data):
-    """Handle when a stable ArUco marker is detected"""
+def _handle_marker_detected(self, marker_id: int, associated_data):
+    """Handle when a ArUco marker is detected"""
 
     # Your custom logic here
     if marker_id == 1:

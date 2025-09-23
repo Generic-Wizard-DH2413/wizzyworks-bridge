@@ -64,7 +64,7 @@ class WizzyWorksBridge:
         self, marker_id: int, associated_data, normolized_x: float
     ):
         """
-        Handle when a stable ArUco marker is detected
+        Handle when an ArUco marker is detected
         This is where you implement your custom logic
 
         Args:

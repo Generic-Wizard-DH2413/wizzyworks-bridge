@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import threading
 import time
+import platform
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple, Optional, Callable
 
@@ -19,8 +20,28 @@ class ArucoScanner:
         """
         self.camera_index = camera_index
 
-        # Camera setup - use V4L2 backend for better Linux compatibility
-        self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
+        # OS-specific camera setup
+        self.os_name = platform.system()
+        self.is_windows = self.os_name == "Windows"
+        self.is_linux = self.os_name == "Linux"
+        self.is_macos = self.os_name == "Darwin"
+        
+        if self.is_windows:
+            # Windows setup - use DirectShow backend
+            self.cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+            print("Using DirectShow backend for Windows")
+        elif self.is_linux:
+            # Linux setup - use V4L2 backend for better Linux compatibility
+            self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
+            print("Using V4L2 backend for Linux")
+        elif self.is_macos:
+            # macOS setup - use AVFoundation backend
+            self.cap = cv2.VideoCapture(camera_index, cv2.CAP_AVFOUNDATION)
+            print("Using AVFoundation backend for macOS")
+        else:
+            # Fallback for unknown OS - use default backend
+            self.cap = cv2.VideoCapture(camera_index)
+            print(f"Using default backend for unknown OS: {self.os_name}")
 
         # Set pixel format to MJPG to avoid color issues
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*"MJPG"))
@@ -30,10 +51,37 @@ class ArucoScanner:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
 
-        # Disable auto exposure (1 = manual mode for V4L2) and set a manual exposure value
-        # A lower value means shorter exposure, darker image, and higher framerate potential
-        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-        self.cap.set(cv2.CAP_PROP_EXPOSURE, 100)
+        # OS-specific exposure settings
+        if self.is_windows:
+            # Windows DirectShow exposure settings
+            # For DirectShow, auto exposure modes: 0.25 = manual, 0.75 = auto
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode for DirectShow
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)  # Negative values for DirectShow (typically -13 to -1)
+        elif self.is_linux:
+            # Linux V4L2 exposure settings
+            # Disable auto exposure (1 = manual mode for V4L2) and set a manual exposure value
+            # A lower value means shorter exposure, darker image, and higher framerate potential
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # Manual mode for V4L2
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, 100)
+        elif self.is_macos:
+            # macOS AVFoundation exposure settings
+            # Similar to DirectShow but may have different optimal values
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode for AVFoundation
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, -5)  # Slightly different exposure for macOS
+        else:
+            # Fallback exposure settings for unknown OS
+            # Try common values that might work across platforms
+            try:
+                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Try DirectShow-style first
+                self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+                print("Using DirectShow-style exposure settings as fallback")
+            except:
+                try:
+                    self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # Fallback to V4L2-style
+                    self.cap.set(cv2.CAP_PROP_EXPOSURE, 100)
+                    print("Using V4L2-style exposure settings as fallback")
+                except:
+                    print("Warning: Could not set exposure settings - using camera defaults")
 
         # Verify settings
         fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
@@ -45,14 +93,30 @@ class ArucoScanner:
         actual_exposure = self.cap.get(cv2.CAP_PROP_EXPOSURE)
 
         print("--- Camera Settings ---")
-        print("Backend: V4L2")
+        backend_info = {
+            "Windows": "DirectShow (Windows)",
+            "Linux": "V4L2 (Linux)", 
+            "Darwin": "AVFoundation (macOS)",
+        }.get(self.os_name, f"Default ({self.os_name})")
+        print(f"Backend: {backend_info}")
         print(f"FOURCC set: MJPG, actual: {fourcc_str}")
         print(
             f"Resolution set: 1920x1080, actual: {int(actual_width)}x{int(actual_height)}"
         )
         print(f"FPS set: 30, actual: {actual_fps}")
-        print(f"Auto Exposure set to: 1 (Manual), actual: {actual_auto_exposure}")
-        print(f"Exposure set to: 100, actual: {actual_exposure}")
+        
+        if self.is_windows:
+            print(f"Auto Exposure set to: 0.25 (Manual), actual: {actual_auto_exposure}")
+            print(f"Exposure set to: -6, actual: {actual_exposure}")
+        elif self.is_linux:
+            print(f"Auto Exposure set to: 1 (Manual), actual: {actual_auto_exposure}")
+            print(f"Exposure set to: 100, actual: {actual_exposure}")
+        elif self.is_macos:
+            print(f"Auto Exposure set to: 0.25 (Manual), actual: {actual_auto_exposure}")
+            print(f"Exposure set to: -5, actual: {actual_exposure}")
+        else:
+            print(f"Auto Exposure (fallback), actual: {actual_auto_exposure}")
+            print(f"Exposure (fallback), actual: {actual_exposure}")
         print("-----------------------")
 
         # ArUco detection setup

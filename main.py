@@ -19,8 +19,11 @@ class WizzyWorksBridge:
         
         # Initialize components
         self.websocket_client = WebSocketClient(websocket_uri)
+        # To use a different camera, change the camera_index.
+        # 0 is usually the built-in webcam, 1 or higher are for external webcams.
+        # You can list available cameras on Linux with `ls /dev/video*`
         self.aruco_scanner = ArucoScanner(
-            camera_index=0,
+            camera_index=4,  # Changed to use external webcam
             stability_threshold=10.0,  # pixels
             stability_duration=2.0     # seconds
         )

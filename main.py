@@ -37,6 +37,27 @@ class WizzyWorksBridge:
     def _setup_callbacks(self):
         """Set up callbacks between components"""
 
+        # When a message is received via WebSocket, validate it and send confirmation
+        def on_message_received(message):
+            try:
+                message_data = json.loads(message)
+            except json.JSONDecodeError:
+                print(f"❌ Error decoding JSON: {message}")
+                return
+
+            if self._validate_data(message_data):
+                print("✅ Data format is valid.")
+                status_message = {"id": message_data["id"], "data": {"id": message_data["id"], "status": "ready"}}
+                self.websocket_client.send_json(status_message)
+                print(f"✅ Sent 'ready' status for id {message_data['id']} to server.")
+
+                # Pass validated data to ArUco scanner
+                aruco_id = message_data.get("id")
+                if aruco_id is not None:
+                    self.aruco_scanner.set_target_id(aruco_id, message_data)
+            else:
+                print("❌ Data validation failed. Skipping.")
+
         # When an ArUco data is received via WebSocket, update scanner targets
         def on_aruco_received(aruco_id, data):
             print(f"🔔 Received ArUco ID {aruco_id} with data: {data}")
@@ -57,6 +78,7 @@ class WizzyWorksBridge:
             print("❌ Disconnected from WebSocket server")
 
         # Set callbacks
+        self.websocket_client.set_message_callback(on_message_received)
         self.websocket_client.set_aruco_callback(on_aruco_received)
         self.websocket_client.set_connection_callbacks(on_connected, on_disconnected)
         self.aruco_scanner.set_marker_detected_callback(on_marker_detected)
@@ -65,10 +87,6 @@ class WizzyWorksBridge:
         """Validate the structure and types of the received data."""
         if not isinstance(data, dict):
             print("❌ Error: Data is not a dictionary.")
-            return False
-
-        if "id" not in data or not isinstance(data["id"], int):
-            print("❌ Error: Missing or invalid 'id'.")
             return False
 
         if "data" not in data or not isinstance(data["data"], dict):
@@ -114,52 +132,74 @@ class WizzyWorksBridge:
                 print(f"❌ Error parsing JSON: {e}")
                 return
 
-        if not self._validate_data(associated_data):
-            print("❌ Data validation failed. Skipping.")
-            return
-
-        print("✅ Data format is valid.")
-
         # Create save directory path
         save_dir = "C:\\Users\\lambo\\Developer\\wizzyworks-graphics\\godot-visuals\\json_fireworks"
         os.makedirs(save_dir, exist_ok=True)
 
         # --- Save PNG from Base64 data ---
         png_filename = os.path.join(save_dir, 'firework_drawings', f"{marker_id}.png")
+        png_created = False
+        
         try:
+            # Ensure the firework_drawings subdirectory exists
+            os.makedirs(os.path.dirname(png_filename), exist_ok=True)
+            
             # Decode the Base64 string
-            base64_string = associated_data["data"]["inner_layer"]
+            base64_string = associated_data["inner_layer"]
+            print(f"Decoding Base64 string for marker {marker_id}...")
+            print(f"Base64 string length: {len(base64_string)}")
+            print(f"First 100 characters of Base64 string: {base64_string[:100]}")
+            
+            # Check if it's a data URL and extract just the Base64 part
+            if base64_string.startswith("data:"):
+                # Split on comma and take the part after it (the actual Base64 data)
+                if "," in base64_string:
+                    base64_string = base64_string.split(",", 1)[1]
+                    print(f"Extracted Base64 data (length: {len(base64_string)})")
+                else:
+                    print("⚠️ Warning: Data URL format detected but no comma separator found")
+            
             image_data = base64.b64decode(base64_string)
 
             # Save to PNG file
             with open(png_filename, "wb") as f:
                 f.write(image_data)
 
-            print(f"💾 Saved marker {marker_id} image to {png_filename}")
+            # Verify the PNG file was created and has content
+            if os.path.exists(png_filename) and os.path.getsize(png_filename) > 0:
+                png_created = True
+                print(f"💾 Saved marker {marker_id} image to {png_filename}")
+            else:
+                print(f"❌ PNG file created but appears to be empty: {png_filename}")
 
         except (base64.binascii.Error, TypeError) as e:
             print(f"❌ Error decoding Base64 string for marker {marker_id}: {e}")
         except Exception as e:
             print(f"❌ Error saving PNG for marker {marker_id}: {e}")
 
-        # --- Save metadata to JSON file ---
-        json_filename = os.path.join(save_dir, f"{marker_id}.json")
-        try:
-            # Create a deep copy to avoid modifying the original data
-            metadata = json.loads(json.dumps(associated_data))
+        # --- Save metadata to JSON file (only if PNG was created successfully) ---
+        if png_created:
+            json_filename = os.path.join(save_dir, f"{marker_id}.json")
+            try:
+                # Create a deep copy to avoid modifying the original data
+                metadata = json.loads(json.dumps(associated_data))
 
-            # Remove the large Base64 string from the metadata
-            if "data" in metadata and "inner_layer" in metadata["data"]:
-                del metadata["data"]["inner_layer"]
+                # Remove the large Base64 string from the metadata
+                if "inner_layer" in metadata:
+                    metadata["inner_layer"] = f"{marker_id}"
 
-            # Save the metadata to a JSON file
-            with open(json_filename, "w") as f:
-                json.dump(metadata, f, indent=4)
+                metadata["location"] = normolized_x
 
-            print(f"💾 Saved marker {marker_id} metadata to {json_filename}")
+                # Save the metadata to a JSON file
+                with open(json_filename, "w") as f:
+                    json.dump(metadata, f, indent=4)
 
-        except Exception as e:
-            print(f"❌ Error saving JSON for marker {marker_id}: {e}")
+                print(f"💾 Saved marker {marker_id} metadata to {json_filename}")
+
+            except Exception as e:
+                print(f"❌ Error saving JSON for marker {marker_id}: {e}")
+        else:
+            print(f"⚠️ Skipping JSON creation for marker {marker_id} because PNG was not created successfully")
 
     def start(self):
         """Start the bridge application"""
@@ -294,7 +334,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     # You can change the WebSocket URI here
-    websocket_uri = "ws://localhost:8080"
+    websocket_uri = "ws://130.229.176.167:8765"
 
     # Create and start the bridge
     bridge = WizzyWorksBridge(websocket_uri)

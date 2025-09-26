@@ -73,7 +73,7 @@ class WebSocketClient:
                     if self.on_aruco_received:
                         try:
                             message_data = json.loads(message)
-                            aruco_id = message_data.get("aruco_id")
+                            aruco_id = message_data.get("id")
                             data = message_data.get("data")
 
                             if aruco_id is not None:

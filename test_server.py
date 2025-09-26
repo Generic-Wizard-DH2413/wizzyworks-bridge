@@ -42,84 +42,97 @@ class TestWebSocketServer:
                 *[client.send(message) for client in self.clients],
                 return_exceptions=True
             )
-    
-    async def send_test_messages(self):
-        """Send test ArUco messages periodically"""
-        test_messages = [
-            {"aruco_id": 1, "data": "red_button"},
-            {"aruco_id": 2, "data": "blue_button"},
-            {"aruco_ids": [3, 4], "data": {"action": "multi_trigger", "value": 42}},
-            {"command": "reset"},
-            {"aruco_id": 5, "data": {"complex": "data", "nested": {"key": "value"}}}
-        ]
-        
-        message_index = 0
-        while True:
-            await asyncio.sleep(10)  # Send a message every 10 seconds
-            
-            if self.clients:
-                message = test_messages[message_index % len(test_messages)]
-                json_message = json.dumps(message)
-                print(f"📤 Broadcasting test message: {json_message}")
-                await self.broadcast(json_message)
-                message_index += 1
-    
+
     async def interactive_mode(self):
         """Interactive mode for sending custom messages"""
-        print("\n" + "="*50)
+        # 1x1 black pixel PNG, base64 encoded
+        base64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+        test_messages = [
+            # Simple message
+            {"aruco_id": 1, "data": "red_button"},
+            # Complex message with new data format and base64 image
+            {
+                "aruco_id": 2,
+                "data": {
+                    "id": 2,
+                    "data": {
+                        "outer_layer": "circle_pulsate",
+                        "outer_layer_color": [1.0, 0.2, 0.2],
+                        "outer_layer_second_color": [0.8, 0.0, 0.0],
+                        "inner_layer": base64_png,
+                    },
+                },
+            },
+            # Command to reset aruco targets
+            {"command": "reset"},
+        ]
+
+        print("\n" + "=" * 50)
         print("INTERACTIVE MODE")
-        print("="*50)
+        print("=" * 50)
         print("Commands:")
-        print("  send <aruco_id> <data>  - Send ArUco data")
-        print("  multi <id1,id2,id3>     - Send multiple IDs")
+        print("  send <aruco_id> <data>  - Send ArUco data (data can be JSON)")
         print("  reset                   - Clear all ArUco data")
         print("  clear <aruco_id>        - Clear specific ID")
+        print("  test <message_index>    - Send a predefined test message")
         print("  quit                    - Exit server")
-        print("="*50)
-        
+        print("=" * 50)
+
         while True:
             try:
                 command = await asyncio.get_event_loop().run_in_executor(
                     None, input, "Enter command: "
                 )
-                
+
                 if command.lower() == "quit":
                     break
-                
+
                 message = None
-                
+
                 if command.startswith("send "):
                     parts = command.split(" ", 2)
                     if len(parts) >= 2:
                         aruco_id = int(parts[1])
-                        data = parts[2] if len(parts) > 2 else None
+                        data_str = parts[2] if len(parts) > 2 else "{}"
+                        # Try to parse data as JSON, otherwise treat as string
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            data = data_str
                         message = {"aruco_id": aruco_id, "data": data}
-                
-                elif command.startswith("multi "):
-                    ids_str = command.split(" ", 1)[1]
-                    ids = [int(id.strip()) for id in ids_str.split(",")]
-                    message = {"aruco_ids": ids, "data": "multi_trigger"}
-                
+
                 elif command == "reset":
                     message = {"command": "reset"}
-                
+
                 elif command.startswith("clear "):
                     aruco_id = int(command.split(" ")[1])
                     message = {"command": "clear", "aruco_id": aruco_id}
                 
+                elif command.startswith("test "):
+                    try:
+                        index = int(command.split(" ")[1])
+                        if 0 <= index < len(test_messages):
+                            message = test_messages[index]
+                        else:
+                            print(f"❌ Invalid test message index. Please choose between 0 and {len(test_messages) - 1}.")
+                    except (ValueError, IndexError):
+                        print("❌ Invalid 'test' command format. Use 'test <index>'.")
+
+
                 if message:
                     json_message = json.dumps(message)
                     print(f"📤 Sending: {json_message}")
                     await self.broadcast(json_message)
                 else:
                     print("❌ Invalid command format")
-                    
+
             except (EOFError, KeyboardInterrupt):
                 break
             except Exception as e:
                 print(f"❌ Error: {e}")
     
-    async def start_server(self, auto_send=False, interactive=True):
+    async def start_server(self, interactive=True):
         """Start the WebSocket server"""
         print(f"🚀 Starting WebSocket server on {self.host}:{self.port}")
         
@@ -129,10 +142,6 @@ class TestWebSocketServer:
         
         # Start background tasks
         tasks = []
-        
-        if auto_send:
-            tasks.append(asyncio.create_task(self.send_test_messages()))
-            print("🤖 Auto-send mode enabled (sends test messages every 10s)")
         
         if interactive:
             tasks.append(asyncio.create_task(self.interactive_mode()))
@@ -153,13 +162,12 @@ def main():
     import sys
     
     # Parse command line arguments
-    auto_send = "--auto" in sys.argv
     no_interactive = "--no-interactive" in sys.argv
     
     server = TestWebSocketServer()
     
     try:
-        asyncio.run(server.start_server(auto_send=auto_send, interactive=not no_interactive))
+        asyncio.run(server.start_server(interactive=not no_interactive))
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
 

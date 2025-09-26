@@ -72,13 +72,20 @@ class WebSocketClient:
                     # Parse and handle ArUco data
                     if self.on_aruco_received:
                         try:
-                            raw_data = json.loads(message)
-                            data = raw_data.get("data")
-                            aruco_id = data.get("id")
-                            payload = data.get("data")
-                            self.on_aruco_received(aruco_id, payload)
+                            message_data = json.loads(message)
+                            aruco_id = message_data.get("aruco_id")
+                            data = message_data.get("data")
+
+                            if aruco_id is not None:
+                                self.on_aruco_received(aruco_id, data)
+                            else:
+                                # Handle other message types like 'reset' if needed
+                                print(f"Received non-ArUco message: {message_data}")
+
                         except json.JSONDecodeError:
-                            print(json.JSONDecodeError)
+                            print(f"Error decoding JSON: {message}")
+                        except (AttributeError, TypeError) as e:
+                            print(f"Error processing message: {e}. Message: {message}")
 
         except websockets.exceptions.ConnectionClosed:
             print("WebSocket connection closed")

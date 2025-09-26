@@ -1,3 +1,4 @@
+import base64
 import cv2
 import time
 import signal
@@ -60,86 +61,105 @@ class WizzyWorksBridge:
         self.websocket_client.set_connection_callbacks(on_connected, on_disconnected)
         self.aruco_scanner.set_marker_detected_callback(on_marker_detected)
 
+    def _validate_data(self, data):
+        """Validate the structure and types of the received data."""
+        if not isinstance(data, dict):
+            print("❌ Error: Data is not a dictionary.")
+            return False
+
+        if "id" not in data or not isinstance(data["id"], int):
+            print("❌ Error: Missing or invalid 'id'.")
+            return False
+
+        if "data" not in data or not isinstance(data["data"], dict):
+            print("❌ Error: Missing or invalid 'data' object.")
+            return False
+
+        payload = data["data"]
+
+        required_keys = {
+            "outer_layer": str,
+            "outer_layer_color": list,
+            "outer_layer_second_color": list,
+            "inner_layer": str,
+        }
+
+        for key, key_type in required_keys.items():
+            if key not in payload or not isinstance(payload[key], key_type):
+                print(f"❌ Error: Missing or invalid '{key}'.")
+                return False
+
+        for key in ["outer_layer_color", "outer_layer_second_color"]:
+            if len(payload[key]) != 3 or not all(
+                isinstance(c, (int, float)) and 0 <= c <= 1 for c in payload[key]
+            ):
+                print(f"❌ Error: Invalid color format for '{key}'.")
+                return False
+
+        return True
+
     def _handle_marker_detected(
         self, marker_id: int, associated_data, normolized_x: float
     ):
         """
-        Handle when an ArUco marker is detected
-        This is where you implement your custom logic
-
-        Args:
-            marker_id: The ArUco marker ID that was detected
-            associated_data: Any data that was sent with this marker ID via WebSocket
+        Handle when an ArUco marker is detected.
+        Validates the data, saves the inner_layer as a PNG, and saves the
+        remaining metadata as a JSON file.
         """
-        # Check if associated_data is a list of x,y coordinates
-        print(f"🔍 Debug: associated_data type: {type(associated_data)}")
-        print(f"🔍 Debug: associated_data value: {associated_data}")
-
         # If it's a string, try to parse it as JSON
         if isinstance(associated_data, str):
             try:
                 associated_data = json.loads(associated_data)
-                print(f"🔍 Debug: Parsed JSON successfully: {associated_data}")
             except json.JSONDecodeError as e:
                 print(f"❌ Error parsing JSON: {e}")
-                print(
-                    f"ℹ️ Marker {marker_id} data is not valid JSON - skipping file save"
-                )
                 return
 
-        print(
-            f"🔍 Debug: isinstance(associated_data, list): {isinstance(associated_data, list)}"
-        )
+        if not self._validate_data(associated_data):
+            print("❌ Data validation failed. Skipping.")
+            return
 
-        if isinstance(associated_data, list) and len(associated_data) > 0:
-            print(
-                f"🔍 Debug: Passed initial list check, length: {len(associated_data)}"
-            )
-            # Validate that all items in the list are coordinate pairs (x,y)
-            is_coordinate_list = True
-            for i, item in enumerate(associated_data):
-                print(f"🔍 Debug: Item {i}: {item}, type: {type(item)}")
-                item_is_valid = (
-                    isinstance(item, (list, tuple))
-                    and len(item) == 2
-                    and all(isinstance(coord, (int, float)) for coord in item)
-                )
-                print(f"🔍 Debug: Item {i} is valid: {item_is_valid}")
-                if not item_is_valid:
-                    is_coordinate_list = False
-                    break
+        print("✅ Data format is valid.")
 
-            print(f"🔍 Debug: is_coordinate_list: {is_coordinate_list}")
-            if is_coordinate_list:
-                # Create the data structure to save
-                data_to_save = {"location": normolized_x, "points": associated_data}
+        # Create save directory path
+        save_dir = "C:\\Users\\lambo\\Developer\\wizzyworks-graphics\\godot-visuals\\json_fireworks"
+        os.makedirs(save_dir, exist_ok=True)
 
-                # Create save directory path
-                save_dir = "../wizzyworks-graphics/godot-visuals/json_fireworks"
+        # --- Save PNG from Base64 data ---
+        png_filename = os.path.join(save_dir, 'firework_drawings', f"{marker_id}.png")
+        try:
+            # Decode the Base64 string
+            base64_string = associated_data["data"]["inner_layer"]
+            image_data = base64.b64decode(base64_string)
 
-                # Create directory if it doesn't exist
-                os.makedirs(save_dir, exist_ok=True)
+            # Save to PNG file
+            with open(png_filename, "wb") as f:
+                f.write(image_data)
 
-                # Create filename based on marker ID
-                filename = os.path.join(save_dir, f"{marker_id}.json")
+            print(f"💾 Saved marker {marker_id} image to {png_filename}")
 
-                try:
-                    # Save to JSON file
-                    with open(filename, "w") as f:
-                        json.dump(data_to_save, f, indent=2)
+        except (base64.binascii.Error, TypeError) as e:
+            print(f"❌ Error decoding Base64 string for marker {marker_id}: {e}")
+        except Exception as e:
+            print(f"❌ Error saving PNG for marker {marker_id}: {e}")
 
-                    print(f"💾 Saved marker {marker_id} data to {filename}")
-                    print(f"   Location: {normolized_x}")
-                    print(f"   Points: {len(associated_data)} coordinate pairs")
+        # --- Save metadata to JSON file ---
+        json_filename = os.path.join(save_dir, f"{marker_id}.json")
+        try:
+            # Create a deep copy to avoid modifying the original data
+            metadata = json.loads(json.dumps(associated_data))
 
-                except Exception as e:
-                    print(f"❌ Error saving data for marker {marker_id}: {e}")
-            else:
-                print(
-                    f"⚠️ Marker {marker_id} data is not a valid list of x,y coordinates"
-                )
-        else:
-            print(f"ℹ️ Marker {marker_id} data is not a list - skipping file save")
+            # Remove the large Base64 string from the metadata
+            if "data" in metadata and "inner_layer" in metadata["data"]:
+                del metadata["data"]["inner_layer"]
+
+            # Save the metadata to a JSON file
+            with open(json_filename, "w") as f:
+                json.dump(metadata, f, indent=4)
+
+            print(f"💾 Saved marker {marker_id} metadata to {json_filename}")
+
+        except Exception as e:
+            print(f"❌ Error saving JSON for marker {marker_id}: {e}")
 
     def start(self):
         """Start the bridge application"""
@@ -274,7 +294,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     # You can change the WebSocket URI here
-    websocket_uri = "ws://192.168.3.7:8765"
+    websocket_uri = "ws://localhost:8080"
 
     # Create and start the bridge
     bridge = WizzyWorksBridge(websocket_uri)

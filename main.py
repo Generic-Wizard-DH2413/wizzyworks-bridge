@@ -10,22 +10,20 @@ from websocket_client import WebSocketClient
 
 
 class WizzyWorksBridge:
-    def __init__(self, websocket_uri: str = "ws://localhost:8080/"):
+    def __init__(self, websocket_uri: str = "ws://localhost:8080/", camera_index: int = 0):
         """
         Main application class that coordinates WebSocket and ArUco scanning
 
         Args:
             websocket_uri: WebSocket server URI
+            camera_index: Camera device index (0 for built-in webcam, 1+ for external)
         """
         self.websocket_uri = websocket_uri
 
         # Initialize components
         self.websocket_client = WebSocketClient(websocket_uri)
-        # To use a different camera, change the camera_index.
-        # 0 is usually the built-in webcam, 1 or higher are for external webcams.
-        # You can list available cameras on Linux with `ls /dev/video*`
         self.aruco_scanner = ArucoScanner(
-            camera_index=0,  # Changed to use external webcam
+            camera_index=camera_index,
         )
 
         # Set up callbacks
@@ -144,6 +142,15 @@ class WizzyWorksBridge:
             # Ensure the firework_drawings subdirectory exists
             os.makedirs(os.path.dirname(png_filename), exist_ok=True)
             
+            # Delete any existing .png.import file before creating the PNG (Godot auto-generated import file)
+            import_filename = f"{png_filename}.import"
+            if os.path.exists(import_filename):
+                try:
+                    os.remove(import_filename)
+                    print(f"🗑️ Deleted existing import file: {import_filename}")
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not delete import file {import_filename}: {e}")
+            
             # Decode the Base64 string
             base64_string = associated_data["inner_layer"]
             print(f"Decoding Base64 string for marker {marker_id}...")
@@ -179,6 +186,9 @@ class WizzyWorksBridge:
 
         # --- Save metadata to JSON file (only if PNG was created successfully) ---
         if png_created:
+            # Add 4 second delay after PNG generation before creating JSON
+            time.sleep(5.5)
+            
             json_filename = os.path.join(save_dir, f"{marker_id}.json")
             try:
                 # Create a deep copy to avoid modifying the original data
@@ -333,11 +343,16 @@ def main():
     # Set up signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
 
-    # You can change the WebSocket URI here
-    websocket_uri = "ws://130.229.176.167:8765"
+    # Configuration - you can easily change these values here
+    websocket_uri = "ws://localhost:8765"
+    
+    # Camera configuration:
+    # 0 is usually the built-in webcam, 1 or higher are for external webcams.
+    # You can list available cameras on Linux with `ls /dev/video*`
+    camera_index = 0  # Change this value to use a different camera
 
     # Create and start the bridge
-    bridge = WizzyWorksBridge(websocket_uri)
+    bridge = WizzyWorksBridge(websocket_uri, camera_index)
     bridge.start()
 
 

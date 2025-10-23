@@ -99,6 +99,50 @@ clear 1
 
 ## Configuration
 
+### Environment Variables
+
+Create a `.env` file in the project root to configure the application:
+
+```bash
+# Copy .env.example to .env and modify as needed
+cp .env.example .env
+```
+
+Example `.env` file:
+
+```bash
+# WebSocket Configuration
+WEBSOCKET_URI=wss://wizzyworks-server.redbush-85e59e10.swedencentral.azurecontainerapps.io
+
+# Camera Configuration  
+CAMERA_INDEX=0
+
+# For local development:
+# WEBSOCKET_URI=ws://localhost:8080/
+# CAMERA_INDEX=1
+```
+
+### Command Line Arguments
+
+You can also override settings using command-line arguments:
+
+```bash
+# Use a different camera
+python main.py --camera 1
+
+# Use a different WebSocket URI
+python main.py --websocket-uri ws://localhost:8080/
+
+# Use both
+python main.py --camera 1 --websocket-uri ws://localhost:8080/
+
+# Short forms
+python main.py -c 1 -w ws://localhost:8080/
+
+# Show help
+python main.py --help
+```
+
 ### Camera Settings
 
 In `aruco_scanner.py`, you can adjust:
@@ -112,16 +156,6 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
 cap.set(cv2.CAP_PROP_EXPOSURE, 100)
 ```
-
-````
-
-### WebSocket URI
-
-Change the WebSocket server address in `main.py`:
-
-```python
-websocket_uri = "ws://your-server:8080"
-````
 
 ## WebSocket Message Format
 
@@ -200,3 +234,4 @@ This sends a sequence of test commands to demonstrate all features.
 - **OpenCV**: Computer vision and ArUco marker detection
 - **NumPy**: Numerical operations
 - **websockets**: WebSocket client/server functionality
+- **python-dotenv**: Environment variable management

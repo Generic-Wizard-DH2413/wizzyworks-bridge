@@ -149,6 +149,7 @@ class ArucoScanner:
             new_id
         )  # Allow retriggering if it was already triggered
         print(f"Added/Updated target ArUco ID: {new_id}")
+        print(f"Current data for ID {new_id}: {data}")
         print(f"Current target ArUco IDs: {list(self.target_ids.keys())}")
         print(f"Current triggered ArUco IDs: {list(self.triggered_ids)}")
 

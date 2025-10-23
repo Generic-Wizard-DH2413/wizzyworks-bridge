@@ -5,6 +5,8 @@ import signal
 import sys
 import json
 import os
+import argparse
+from dotenv import load_dotenv
 from aruco_scanner import ArucoScanner
 from websocket_client import WebSocketClient
 
@@ -87,39 +89,49 @@ class WizzyWorksBridge:
             print("❌ Error: Data is not a dictionary.")
             return False
 
-        if "data" not in data or not isinstance(data["data"], dict):
-            print("❌ Error: Missing or invalid 'data' object.")
+        if "fireworks" not in data or not isinstance(data["fireworks"], list):
+            print("❌ Error: Missing or invalid 'fireworks' list.")
             return False
 
-        payload = data["data"]
-
-        required_keys = {
-            "outer_layer": str,
-            "outer_layer_color": list,
-            "outer_layer_second_color": list,
-            "inner_layer": str,
-        }
-
-        for key, key_type in required_keys.items():
-            if key not in payload or not isinstance(payload[key], key_type):
-                print(f"❌ Error: Missing or invalid '{key}'.")
+        for i, firework in enumerate(data["fireworks"]):
+            if not isinstance(firework, dict):
+                print(f"❌ Error: Firework at index {i} is not a dictionary.")
                 return False
 
-        for key in ["outer_layer_color", "outer_layer_second_color"]:
-            if len(payload[key]) != 3 or not all(
-                isinstance(c, (int, float)) and 0 <= c <= 1 for c in payload[key]
-            ):
-                print(f"❌ Error: Invalid color format for '{key}'.")
+            required_keys = {
+                "outer_layer": str,
+                "outer_layer_color": list,
+                "outer_layer_second_color": list,
+                # "inner_layer": str,
+                "outer_layer_specialfx": (int, float),
+                "path_speed": (int, float),
+                # "path_wobble": (int, float),
+            }
+
+            for key, key_type in required_keys.items():
+                if key not in firework or not isinstance(firework[key], key_type):
+                    print(f"❌ Error: Missing or invalid '{key}' in firework at index {i}.")
+                    return False
+
+            for key in ["outer_layer_color", "outer_layer_second_color"]:
+                if len(firework[key]) != 3 or not all(
+                    isinstance(c, (int, float)) and 0 <= c <= 1 for c in firework[key]
+                ):
+                    print(f"❌ Error: Invalid color format for '{key}' in firework at index {i}.")
+                    return False
+
+            if not (0 <= firework["outer_layer_specialfx"] <= 1):
+                print(f"❌ Error: Invalid 'outer_layer_specialfx' value in firework at index {i}.")
                 return False
 
         return True
 
     def _handle_marker_detected(
-        self, marker_id: int, associated_data, normolized_x: float
+        self, marker_id: int, associated_data, normalized_x: float
     ):
         """
         Handle when an ArUco marker is detected.
-        Validates the data, saves the inner_layer as a PNG, and saves the
+        Validates the data, saves the inner_layer as PNGs for each firework, and saves the
         remaining metadata as a JSON file.
         """
         # If it's a string, try to parse it as JSON
@@ -130,86 +142,108 @@ class WizzyWorksBridge:
                 print(f"❌ Error parsing JSON: {e}")
                 return
 
+        # Check if associated_data is valid
+        if associated_data is None or not isinstance(associated_data, dict):
+            print(f"❌ Invalid associated_data for marker {marker_id}: {associated_data}")
+            return
+
+        # Check if fireworks key exists
+        if "fireworks" not in associated_data or not isinstance(associated_data["fireworks"], list):
+            print(f"❌ Missing or invalid 'fireworks' list in associated_data for marker {marker_id}")
+            return
+
         # Create save directory path
         save_dir = "C:\\Users\\lambo\\Developer\\wizzyworks-graphics\\godot-visuals\\json_fireworks"
         os.makedirs(save_dir, exist_ok=True)
 
-        # --- Save PNG from Base64 data ---
-        png_filename = os.path.join(save_dir, 'firework_drawings', f"{marker_id}.png")
-        png_created = False
-        
-        try:
-            # Ensure the firework_drawings subdirectory exists
-            os.makedirs(os.path.dirname(png_filename), exist_ok=True)
-            
-            # Delete any existing .png.import file before creating the PNG (Godot auto-generated import file)
-            import_filename = f"{png_filename}.import"
-            if os.path.exists(import_filename):
-                try:
-                    os.remove(import_filename)
-                    print(f"🗑️ Deleted existing import file: {import_filename}")
-                except Exception as e:
-                    print(f"⚠️ Warning: Could not delete import file {import_filename}: {e}")
-            
-            # Decode the Base64 string
-            base64_string = associated_data["inner_layer"]
-            print(f"Decoding Base64 string for marker {marker_id}...")
-            print(f"Base64 string length: {len(base64_string)}")
-            print(f"First 100 characters of Base64 string: {base64_string[:100]}")
-            
-            # Check if it's a data URL and extract just the Base64 part
-            if base64_string.startswith("data:"):
-                # Split on comma and take the part after it (the actual Base64 data)
-                if "," in base64_string:
-                    base64_string = base64_string.split(",", 1)[1]
-                    print(f"Extracted Base64 data (length: {len(base64_string)})")
-                else:
-                    print("⚠️ Warning: Data URL format detected but no comma separator found")
-            
-            image_data = base64.b64decode(base64_string)
+        # Create folder for this marker ID
+        id_folder = os.path.join(save_dir, "firework_drawings", str(marker_id))
+        os.makedirs(id_folder, exist_ok=True)
 
-            # Save to PNG file
-            with open(png_filename, "wb") as f:
-                f.write(image_data)
+        # --- Save PNGs from Base64 data for each firework ---
+        successful_pngs = []
 
-            # Verify the PNG file was created and has content
-            if os.path.exists(png_filename) and os.path.getsize(png_filename) > 0:
-                png_created = True
-                print(f"💾 Saved marker {marker_id} image to {png_filename}")
-            else:
-                print(f"❌ PNG file created but appears to be empty: {png_filename}")
-
-        except (base64.binascii.Error, TypeError) as e:
-            print(f"❌ Error decoding Base64 string for marker {marker_id}: {e}")
-        except Exception as e:
-            print(f"❌ Error saving PNG for marker {marker_id}: {e}")
-
-        # --- Save metadata to JSON file (only if PNG was created successfully) ---
-        if png_created:
-            # Add 4 second delay after PNG generation before creating JSON
-            time.sleep(5.5)
+        for index, firework in enumerate(associated_data["fireworks"]):
+            if not firework.get("inner_layer"):
+                print(f"Skipping PNG creation for marker {marker_id}, firework {index} (no inner_layer)")
+                continue
             
-            json_filename = os.path.join(save_dir, f"{marker_id}.json")
+            png_filename = os.path.join(id_folder, f"{index}.png")
+            
             try:
-                # Create a deep copy to avoid modifying the original data
-                metadata = json.loads(json.dumps(associated_data))
+                # Delete any existing .png.import file before creating the PNG (Godot auto-generated import file)
+                import_filename = f"{png_filename}.import"
+                if os.path.exists(import_filename):
+                    try:
+                        os.remove(import_filename)
+                        print(f"🗑️ Deleted existing import file: {import_filename}")
+                    except Exception as e:
+                        print(f"⚠️ Warning: Could not delete import file {import_filename}: {e}")
+                
+                # Decode the Base64 string
+                base64_string = firework["inner_layer"]
+                print(f"Decoding Base64 string for marker {marker_id}, firework {index}...")
+                print(f"Base64 string length: {len(base64_string)}")
+                print(f"First 100 characters of Base64 string: {base64_string[:100]}")
+                
+                # Check if it's a data URL and extract just the Base64 part
+                if base64_string.startswith("data:"):
+                    # Split on comma and take the part after it (the actual Base64 data)
+                    if "," in base64_string:
+                        base64_string = base64_string.split(",", 1)[1]
+                        print(f"Extracted Base64 data (length: {len(base64_string)})")
+                    else:
+                        print("⚠️ Warning: Data URL format detected but no comma separator found")
+                
+                image_data = base64.b64decode(base64_string)
 
-                # Remove the large Base64 string from the metadata
-                if "inner_layer" in metadata:
-                    metadata["inner_layer"] = f"{marker_id}"
+                # Save to PNG file
+                with open(png_filename, "wb") as f:
+                    f.write(image_data)
 
-                metadata["location"] = normolized_x
+                # Verify the PNG file was created and has content
+                if os.path.exists(png_filename) and os.path.getsize(png_filename) > 0:
+                    print(f"💾 Saved marker {marker_id} firework {index} image to {png_filename}")
+                    successful_pngs.append(index)
+                else:
+                    print(f"❌ PNG file created but appears to be empty: {png_filename}")
 
-                # Save the metadata to a JSON file
-                with open(json_filename, "w") as f:
-                    json.dump(metadata, f, indent=4)
-
-                print(f"💾 Saved marker {marker_id} metadata to {json_filename}")
-
+            except (base64.binascii.Error, TypeError) as e:
+                print(f"❌ Error decoding Base64 string for marker {marker_id}, firework {index}: {e}")
             except Exception as e:
-                print(f"❌ Error saving JSON for marker {marker_id}: {e}")
-        else:
-            print(f"⚠️ Skipping JSON creation for marker {marker_id} because PNG was not created successfully")
+                print(f"❌ Error saving PNG for marker {marker_id}, firework {index}: {e}")
+
+        # --- Save metadata to JSON file ---
+        # Add delay after PNG generation before creating JSON (only if any PNGs were created)
+        if successful_pngs:
+            time.sleep(5.5)
+        
+        json_filename = os.path.join(save_dir, f"{marker_id}.json")
+        try:
+            # Create the fireworks list with modified inner_layer and added location
+            fireworks_metadata = []
+            for idx, fw in enumerate(associated_data["fireworks"]):
+                firework_copy = json.loads(json.dumps(fw))
+                if idx in successful_pngs:
+                    firework_copy["inner_layer"] = f"{marker_id}/{idx}.png"
+                else:
+                    firework_copy["inner_layer"] = None
+                firework_copy["location"] = normalized_x
+                fireworks_metadata.append(firework_copy)
+
+            # Save the fireworks list as the root of the JSON
+            with open(json_filename, "w") as f:
+                json.dump(fireworks_metadata, f, indent=4)
+
+            print(f"💾 Saved marker {marker_id} metadata to {json_filename}")
+
+            # Send launch status back to frontend
+            launch_message = {"id": marker_id, "data": {"id": marker_id, "status": "launch"}}
+            self.websocket_client.send_json(launch_message)
+            print(f"🚀 Sent 'launch' status for id {marker_id} to server.")
+
+        except Exception as e:
+            print(f"❌ Error saving JSON for marker {marker_id}: {e}")
 
     def start(self):
         """Start the bridge application"""
@@ -340,16 +374,37 @@ def signal_handler(sig, frame):
 
 def main():
     """Main entry point"""
+    # Load environment variables from .env file
+    load_dotenv()
+    
+    # Set up command-line argument parser
+    parser = argparse.ArgumentParser(description='WizzyWorks Bridge - ArUco Scanner with WebSocket')
+    parser.add_argument(
+        '--camera', '-c',
+        type=int,
+        default=int(os.getenv('CAMERA_INDEX', 0)),
+        help='Camera index (0 for built-in webcam, 1+ for external cameras). Default: 0 or CAMERA_INDEX env var'
+    )
+    parser.add_argument(
+        '--websocket-uri', '-w',
+        type=str,
+        default=os.getenv('WEBSOCKET_URI', 'wss://wizzyworks-server.redbush-85e59e10.swedencentral.azurecontainerapps.io'),
+        help='WebSocket URI. Default: WEBSOCKET_URI env var or production server'
+    )
+    
+    args = parser.parse_args()
+    
     # Set up signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
 
-    # Configuration - you can easily change these values here
-    websocket_uri = "ws://localhost:8765"
+    # Configuration from command-line args and environment variables
+    websocket_uri = args.websocket_uri
+    camera_index = args.camera
     
-    # Camera configuration:
-    # 0 is usually the built-in webcam, 1 or higher are for external webcams.
-    # You can list available cameras on Linux with `ls /dev/video*`
-    camera_index = 0  # Change this value to use a different camera
+    print(f"🔧 Configuration:")
+    print(f"   WebSocket URI: {websocket_uri}")
+    print(f"   Camera Index: {camera_index}")
+    print()
 
     # Create and start the bridge
     bridge = WizzyWorksBridge(websocket_uri, camera_index)

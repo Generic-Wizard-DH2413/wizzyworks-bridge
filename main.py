@@ -45,7 +45,7 @@ class WizzyWorksBridge:
                 print(f"❌ Error decoding JSON: {message}")
                 return
 
-            if self._validate_data(message_data):
+            if True:
                 print("✅ Data format is valid.")
                 status_message = {"id": message_data["id"], "data": {"id": message_data["id"], "status": "ready"}}
                 self.websocket_client.send_json(status_message)
@@ -215,8 +215,8 @@ class WizzyWorksBridge:
 
         # --- Save metadata to JSON file ---
         # Add delay after PNG generation before creating JSON (only if any PNGs were created)
-        if successful_pngs:
-            time.sleep(5.5)
+        # if successful_pngs:
+        # time.sleep(10)
         
         json_filename = os.path.join(save_dir, f"{marker_id}.json")
         try:

@@ -56,7 +56,7 @@ class ArucoScanner:
             # Windows DirectShow exposure settings
             # For DirectShow, auto exposure modes: 0.25 = manual, 0.75 = auto
             self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode for DirectShow
-            self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)  # Negative values for DirectShow (typically -13 to -1)
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, -2)  # Negative values for DirectShow (typically -13 to -1)
         elif self.is_linux:
             # Linux V4L2 exposure settings
             # Disable auto exposure (1 = manual mode for V4L2) and set a manual exposure value
@@ -73,7 +73,7 @@ class ArucoScanner:
             # Try common values that might work across platforms
             try:
                 self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Try DirectShow-style first
-                self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+                self.cap.set(cv2.CAP_PROP_EXPOSURE, -3)
                 print("Using DirectShow-style exposure settings as fallback")
             except:
                 try:

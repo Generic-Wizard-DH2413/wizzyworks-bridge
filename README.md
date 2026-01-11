@@ -1,6 +1,8 @@
 # WizzyWorks Bridge
 
-This is a Python application that bridges WebSocket communication with ArUco marker detection. It is intended for this system to run alongside other components for the WizzyWorks project, as shown in the diagram below. The system listens for ArUco marker IDs via WebSocket, then monitors a video feed for those specific markers. When a marker is detected, it triggers a custom action, in this case, create and store firework data in json and png format for the graphics project to read.
+This is a Python application that bridges WebSocket communication with ArUco marker detection, and is part of the WizzyWorks virtual firework experience from the course DH2413 Advanced Graphics and Interaction in KTH, 2025. 
+
+It is intended for this system to run alongside other components for the WizzyWorks project, as shown in the diagram below. The system listens for ArUco marker IDs via WebSocket, then monitors a video feed for those specific markers. When a marker is detected, it triggers a custom action, which in this case, create and store firework data in json and png format for the graphics project to read.
 
 ![Visuals Bridge](visuals_bridge.png)
 

@@ -153,7 +153,9 @@ class WizzyWorksBridge:
             return
 
         # Create save directory path
-        save_dir = "C:\\Users\\lambo\\Developer\\wizzyworks-graphics\\godot-visuals\\json_fireworks"
+        save_dir = os.getenv(
+            "SAVE_DIR", "path/to/wizzyworks-graphics/godot-visuals/json_fireworks"
+        )
         os.makedirs(save_dir, exist_ok=True)
 
         # Create folder for this marker ID

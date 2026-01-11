@@ -1,14 +1,15 @@
 # WizzyWorks Bridge
 
-A Python application that bridges WebSocket communication with ArUco marker detection. The system listens for ArUco marker IDs via WebSocket, then monitors a video feed for those specific markers. When a marker is detected, it triggers a custom action.
+This is a Python application that bridges WebSocket communication with ArUco marker detection. It is intended for this system to run alongside other components for the WizzyWorks project, as shown in the diagram below. The system listens for ArUco marker IDs via WebSocket, then monitors a video feed for those specific markers. When a marker is detected, it triggers a custom action, in this case, create and store firework data in json and png format for the graphics project to read.
+
+![Visuals Bridge](visuals_bridge.png)
 
 ## Features
 
-- **WebSocket Integration**: Receives ArUco marker IDs and associated data via WebSocket
+- **WebSocket Integration**: Receives ArUco marker ID and associated data via WebSocket
 - **Real-time ArUco Detection**: Continuously scans video feed for ArUco markers
 - **Component-based Architecture**: Modular design with separate scanner and WebSocket components
 - **Visual Feedback**: Live video feed with marker detection overlay and status information
-- **Test Server Included**: Complete testing environment with interactive commands
 
 ## Architecture
 
@@ -17,13 +18,11 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 1. **`aruco_scanner.py`**: ArUco marker detection
 2. **`websocket_client.py`**: WebSocket client for receiving marker data
 3. **`main.py`**: Main application coordinating all components
-4. **`test_server.py`**: WebSocket server for testing and development
-5. **`demo.py`**: Demonstration script showing usage examples
 
 ### Data Flow
 
-1. WebSocket server sends ArUco marker IDs with associated data
-2. Bridge receives and stores the target marker IDs
+1. WebSocket server sends ArUco marker ID with associated data
+2. Bridge receives and stores the target marker ID
 3. Camera continuously scans for ArUco markers
 4. When a target marker is detected, triggers custom action
 5. Action results can be sent back via WebSocket
@@ -48,83 +47,32 @@ A Python application that bridges WebSocket communication with ArUco marker dete
 
 ## Quick Start
 
-### 1. Start the Test Server
+1. Ensure a WebSocket server is running (see Test Server section below).
 
-Open a terminal and run:
+2. Start the Bridge Application:
 
-```bash
-python test_server.py
-```
+   ```bash
+   python main.py
+   ```
 
-This starts a WebSocket server on `ws://localhost:8080` with interactive mode.
+   This will:
 
-### 2. Start the Bridge Application
+   - Connect to the WebSocket server
+   - Start the camera feed
+   - Begin monitoring for ArUco markers
 
-In another terminal, run:
+3. Test with Physical Markers:
 
-```bash
-python main.py
-```
-
-This will:
-
-- Connect to the WebSocket server
-- Start the camera feed
-- Begin monitoring for ArUco markers
-
-### 3. Send ArUco Commands
-
-In the test server terminal, you can use these commands:
-
-```bash
-# Send a single ArUco ID with data
-send 1 red_button
-
-# Send multiple ArUco IDs
-multi 1,2,3
-
-# Reset all stored IDs
-reset
-
-# Clear a specific ID
-clear 1
-```
-
-### 4. Test with Physical Markers
-
-1. Generate ArUco markers using online tools or OpenCV
-2. Print markers with IDs that match your WebSocket commands
-3. Show markers to the camera
-4. Watch for trigger events in the console
+   - Generate ArUco markers using online tools or OpenCV
+   - Print markers with IDs that match your WebSocket commands
+   - Show markers to the camera
+   - Watch for trigger events in the console
 
 ## Configuration
 
-### Environment Variables
-
-Create a `.env` file in the project root to configure the application:
-
-```bash
-# Copy .env.example to .env and modify as needed
-cp .env.example .env
-```
-
-Example `.env` file:
-
-```bash
-# WebSocket Configuration
-WEBSOCKET_URI=wss://wizzyworks-server.redbush-85e59e10.swedencentral.azurecontainerapps.io
-
-# Camera Configuration  
-CAMERA_INDEX=0
-
-# For local development:
-# WEBSOCKET_URI=ws://localhost:8080/
-# CAMERA_INDEX=1
-```
-
 ### Command Line Arguments
 
-You can also override settings using command-line arguments:
+You can override settings using command-line arguments:
 
 ```bash
 # Use a different camera
@@ -143,6 +91,34 @@ python main.py -c 1 -w ws://localhost:8080/
 python main.py --help
 ```
 
+### Environment Variables
+
+Create a `.env` file in the project root to configure the application:
+
+**Note:** The following environment variables are mandatory for the application to function correctly: `WEBSOCKET_URI` and `SAVE_DIR`.
+
+```bash
+# Copy .env.example to .env and modify as needed
+cp .env.example .env
+```
+
+Example `.env` file:
+
+```bash
+# Mandatory: WebSocket URI for server connection
+WEBSOCKET_URI=wss://wizzyworks-server.redbush-85e59e10.swedencentral.azurecontainerapps.io
+
+# Camera Configuration (optional, defaults to 0)
+CAMERA_INDEX=0
+
+# Mandatory: Path to wizzyworks-graphics project directory for saving firework data
+SAVE_DIR=path/to/wizzyworks-graphics/godot-visuals/json_fireworks
+
+# For local development:
+# WEBSOCKET_URI=ws://localhost:8080/
+# CAMERA_INDEX=1
+```
+
 ### Camera Settings
 
 In `aruco_scanner.py`, you can adjust:
@@ -159,42 +135,39 @@ cap.set(cv2.CAP_PROP_EXPOSURE, 100)
 
 ## WebSocket Message Format
 
-The system expects JSON messages in these formats:
-
-### Single ArUco ID
+The system expects JSON messages in this format:
 
 ```json
 {
-  "aruco_id": 5,
+  "id": 5,
   "data": "any_data_here"
 }
 ```
 
-## Custom Actions
+## Test Server
 
-To implement your custom logic when markers are detected, modify the `_handle_marker_detected` method in `main.py`:
+For testing and development, use the included test server:
 
-```python
-def _handle_marker_detected(self, marker_id: int, associated_data):
-    """Handle when a ArUco marker is detected"""
+1. Start the Test Server:
 
-    # Your custom logic here
-    if marker_id == 1:
-        # Control hardware, send API calls, etc.
-        print("Executing red button action!")
-    elif marker_id == 2:
-        # Different action for different markers
-        print("Executing blue button action!")
+   ```bash
+   python test_server.py
+   ```
 
-    # Send confirmation back to WebSocket
-    response = {
-        "event": "marker_triggered",
-        "marker_id": marker_id,
-        "data": associated_data,
-        "timestamp": time.time()
-    }
-    self.websocket_client.send_json(response)
-```
+   This starts a WebSocket server on `ws://localhost:8080` with interactive mode.
+
+2. Send Commands in the test server terminal:
+
+   ```bash
+   # Send a single ID with data
+   send 1 red_button
+
+   # Reset all stored IDs
+   reset
+
+   # Clear a specific ID
+   clear 1
+   ```
 
 ## Controls
 
@@ -202,36 +175,3 @@ When the video window is active:
 
 - **`q`**: Quit the application
 - **`r`**: Reset triggered markers (allows re-triggering)
-- **`c`**: Clear all stored ArUco data
-
-## Troubleshooting
-
-### Camera Issues
-
-1. **No camera detected**: Check camera index in `ArucoScanner(camera_index=0)`
-2. **Poor detection**: Adjust lighting and camera exposure settings
-3. **Low resolution**: Increase camera resolution settings
-4. **Different backends on different OSs**: Using V4L2 on Linux, DirectShow on Windows, etc.
-
-### WebSocket Issues
-
-1. **Connection failed**: Verify WebSocket server is running and URI is correct
-2. **Messages not received**: Check JSON format and network connectivity
-3. **Reconnection problems**: Server automatically attempts reconnection every 5 seconds
-
-### Testing
-
-Run the demo script to test the complete workflow:
-
-```bash
-python demo.py
-```
-
-This sends a sequence of test commands to demonstrate all features.
-
-## Dependencies
-
-- **OpenCV**: Computer vision and ArUco marker detection
-- **NumPy**: Numerical operations
-- **websockets**: WebSocket client/server functionality
-- **python-dotenv**: Environment variable management
